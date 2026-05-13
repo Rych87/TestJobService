@@ -1,34 +1,72 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Management;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace TestJobService
 {
     internal static class SystemInfo
     {
-        internal static LogModel GetInfo(CancellationToken stoppingToken) 
+        internal static InfoModel GetInfo() 
         {
-            LogModel ret = new LogModel();
+            InfoModel ret = new InfoModel();
             ret.HostName = Dns.GetHostName();
-            ret.IP = Dns.GetHostAddresses(ret.HostName).FirstOrDefault(x=>x.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)?.ToString(); // Берём только IPv4 при необходимости можно переписать для IPv6 или писать оба
+            ret.IP = Dns.GetHostAddresses(ret.HostName).FirstOrDefault(_ => _.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)?.ToString(); // Берём только IPv4 при необходимости можно переписать для IPv6 или писать оба
             ret.DateTime = DateTime.Now;
 
-            ret.GetSysInfo();
+            ret.CpuUsage().MemoryUsage().FreeDiskSpace().Processes().WinVersion();
 
             return ret;
         }
 
-        public static void GetSysInfo(this LogModel model)
+        internal static InfoModel CpuUsage(this InfoModel model)
         {
             var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor");
 
-            if(int.TryParse(searcher.Get().OfType<ManagementObject>()?.FirstOrDefault()?["LoadPercentager"].ToString(), out int res))
+            if(int.TryParse(searcher.GetInfo("LoadPercentage"), out int res))
                 model.CpuLoad = res;
+            return model;
         }
+
+        internal static InfoModel MemoryUsage(this InfoModel model)
+        {
+            var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
+            if(ulong.TryParse(searcher.GetInfo("TotalVisibleMemorySize"), out ulong total) 
+                && ulong.TryParse(searcher.GetInfo("FreePhysicalMemory"), out ulong free))
+            {
+                ulong used = total - free;
+                model.MemoryUsage = (int)((double)used / total * 100.0);    //если важны доли процентов, можно переделать в float/double
+            }
+            return model;
+        }
+
+        internal static InfoModel FreeDiskSpace(this InfoModel model)
+        {
+            ulong totalFree = 0;
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                if (!drive.IsReady)
+                    continue;
+                totalFree += (ulong)drive.AvailableFreeSpace;
+            }
+
+            model.FreeDiskSpace = totalFree / 1024 / 1024;  // В мегабайтах
+            return model;
+        }
+
+        internal static InfoModel Processes(this InfoModel model)
+        {
+            model.Processes = Process.GetProcesses().Select(_ => _.ProcessName).Distinct().ToArray();
+            return model;
+        }
+
+        internal static InfoModel WinVersion(this InfoModel model)
+        {
+            var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem");
+            model.WinVersion = searcher.GetInfo("Caption") + " " + searcher.GetInfo("Version") + " " + searcher.GetInfo("BuildNumber");
+            return model;
+        }
+
+        private static string GetInfo(this ManagementObjectSearcher searcher, string propertyName)
+            => searcher.Get()?.OfType<ManagementObject>()?.FirstOrDefault()?[propertyName].ToString() ?? string.Empty;
     }
 }

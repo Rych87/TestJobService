@@ -13,7 +13,7 @@ namespace TestJobService
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                var info = SystemInfo.GetInfo(stoppingToken);
+                var info = SystemInfo.GetInfo();
                 if (_logger.IsEnabled(LogLevel.Information))
                 {
                     _logger.LogInformation("Worker running at: {time} {hostname}", DateTimeOffset.Now, info.HostName);
