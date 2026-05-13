@@ -20,22 +20,21 @@ namespace TestJobService
 
         internal static InfoModel CpuUsage(this InfoModel model)
         {
-            var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor");
-
-            if(int.TryParse(searcher.GetInfo("LoadPercentage"), out int res))
-                model.CpuLoad = res;
+            using (var searcher = new ManagementObjectSearcher("SELECT LoadPercentage FROM Win32_Processor"))
+                if (int.TryParse(searcher.GetInfo("LoadPercentage"), out int res))
+                    model.CpuLoad = res;
             return model;
         }
 
         internal static InfoModel MemoryUsage(this InfoModel model)
         {
-            var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
-            if(ulong.TryParse(searcher.GetInfo("TotalVisibleMemorySize"), out ulong total) 
-                && ulong.TryParse(searcher.GetInfo("FreePhysicalMemory"), out ulong free))
-            {
-                ulong used = total - free;
-                model.MemoryUsage = (int)((double)used / total * 100.0);    //если важны доли процентов, можно переделать в float/double
-            }
+            using (var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem"))
+                if (ulong.TryParse(searcher.GetInfo("TotalVisibleMemorySize"), out ulong total)
+                    && ulong.TryParse(searcher.GetInfo("FreePhysicalMemory"), out ulong free))
+                {
+                    ulong used = total - free;
+                    model.MemoryUsage = (int)((double)used / total * 100.0);    //если важны доли процентов, можно переделать в float/double
+                }
             return model;
         }
 
@@ -61,12 +60,15 @@ namespace TestJobService
 
         internal static InfoModel WinVersion(this InfoModel model)
         {
-            var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem");
-            model.WinVersion = searcher.GetInfo("Caption") + " " + searcher.GetInfo("Version") + " " + searcher.GetInfo("BuildNumber");
+            using (var searcher = new ManagementObjectSearcher("SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem"))
+                model.WinVersion = searcher.GetInfo("Caption") + " " + searcher.GetInfo("Version") + " " + searcher.GetInfo("BuildNumber");
             return model;
         }
 
         private static string GetInfo(this ManagementObjectSearcher searcher, string propertyName)
-            => searcher.Get()?.OfType<ManagementObject>()?.FirstOrDefault()?[propertyName].ToString() ?? string.Empty;
+        {
+            using (var res = searcher.Get())
+                return res.OfType<ManagementObject>()?.FirstOrDefault()?[propertyName]?.ToString() ?? string.Empty;
+        }
     }
 }
