@@ -1,9 +1,7 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using static System.Net.WebRequestMethods;
 
 namespace TestJobService
 {
@@ -22,15 +20,17 @@ namespace TestJobService
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("Запуск сервиса " + _settings.CurrentValue.ApiUri);
             var channel = Channel.CreateBounded<string>(500);
 
-            _ = Task.Run(async () =>
+            // Таск очереди отправки
+            var sendTask = Task.Run(async () =>
             {
                 await foreach (var json in channel.Reader.ReadAllAsync(stoppingToken))
                 {
                     bool sent = false;
 
-                    while (!sent)
+                    while (!sent && !stoppingToken.IsCancellationRequested)
                     {
                         try
                         {
@@ -53,24 +53,39 @@ namespace TestJobService
                                 await Task.Delay(5000, stoppingToken);
                             }
                         }
+                        catch (HttpRequestException ex)
+                        {
+                            await Task.Delay(5000, stoppingToken);
+                        }
                         catch (Exception ex)
                         {
-                            _logger.LogError($"HTTP {ex.Message}");
-                            Console.WriteLine(ex.Message);
-
-                            await Task.Delay(2000, stoppingToken);
+                            _logger.LogError(ex.Message);
+                            throw;
                         }
                     }
                 }
             });
 
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                var settings = _settings.CurrentValue;
-                var info = SystemInfo.GetInfo();
-                var json = JsonSerializer.Serialize(info);
-                await channel.Writer.WriteAsync(json);
-                await Task.Delay(1000, stoppingToken);
+                while (!stoppingToken.IsCancellationRequested && !sendTask.IsCompleted)
+                {
+                    var settings = _settings.CurrentValue;
+                    var info = SystemInfo.GetInfo();
+                    var json = JsonSerializer.Serialize(info);
+                    await channel.Writer.WriteAsync(json);
+                    await Task.Delay(1000, stoppingToken);
+                }
+            }
+            catch (OperationCanceledException ex) { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+            }
+            finally
+            {
+                channel.Writer.Complete();
+                _logger.LogInformation("Завершение работы сервиса");
             }
         }
     }

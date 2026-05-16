@@ -9,6 +9,6 @@ namespace TestJobService
 {
     public class Settings
     {
-        public string ApiUri { get; set; } = "https://myservice.com/api/sysinfo";
+        public string ApiUri { get; set; }// = "https://myservice.com/api/sysinfo";
     }
 }
