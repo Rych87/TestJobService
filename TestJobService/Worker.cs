@@ -21,7 +21,7 @@ namespace TestJobService
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Запуск сервиса " + _settings.CurrentValue.ApiUri);
-            var channel = Channel.CreateBounded<string>(500);
+            var channel = Channel.CreateBounded<string>(50);
 
             // Таск очереди отправки
             var sendTask = Task.Run(async () =>
@@ -32,36 +32,7 @@ namespace TestJobService
 
                     while (!sent && !stoppingToken.IsCancellationRequested)
                     {
-                        try
-                        {
-                            var settings = _settings.CurrentValue;
-                            var content = new StringContent(json, Encoding.UTF8, "application/json");
-                            HttpResponseMessage response =
-                                await _httpClient.PostAsync(
-                                settings.ApiUri,
-                                content,
-                                stoppingToken);
-
-                            if (response.IsSuccessStatusCode)
-                            {
-                                _logger.LogInformation("Успешно отправлено");
-                                sent = true;
-                            }
-                            else
-                            {
-                                _logger.LogError($"HTTP {(int)response.StatusCode}");
-                                await Task.Delay(5000, stoppingToken);
-                            }
-                        }
-                        catch (HttpRequestException ex)
-                        {
-                            await Task.Delay(5000, stoppingToken);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex.Message);
-                            throw;
-                        }
+                        sent = await SendMessageAsync(json, stoppingToken);
                     }
                 }
             });
@@ -71,7 +42,7 @@ namespace TestJobService
                 while (!stoppingToken.IsCancellationRequested && !sendTask.IsCompleted)
                 {
                     var settings = _settings.CurrentValue;
-                    var info = SystemInfo.GetInfo();
+                    var info = SystemInfo.GetInfo(settings);
                     var json = JsonSerializer.Serialize(info);
                     await channel.Writer.WriteAsync(json);
                     await Task.Delay(1000, stoppingToken);
@@ -86,6 +57,42 @@ namespace TestJobService
             {
                 channel.Writer.Complete();
                 _logger.LogInformation("Завершение работы сервиса");
+            }
+        }
+
+        internal async Task<bool> SendMessageAsync(string json, CancellationToken stoppingToken)
+        {
+            try
+            {
+                var settings = _settings.CurrentValue;
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                HttpResponseMessage response =
+                    await _httpClient.PostAsync(
+                    settings.ApiUri,
+                    content,
+                    stoppingToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Успешно отправлено");
+                    return true;
+                }
+                else
+                {
+                    _logger.LogError($"HTTP {(int)response.StatusCode}");
+                    await Task.Delay(5000, stoppingToken);
+                    return false;
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                await Task.Delay(5000, stoppingToken);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                throw;
             }
         }
     }

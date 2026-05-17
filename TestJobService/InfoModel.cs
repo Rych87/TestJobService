@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 namespace TestJobService
 {
     public class InfoModel
@@ -15,14 +10,18 @@ namespace TestJobService
 
         public DateTime DateTime { get; set; }
 
-        public int CpuLoad { get; set; }
-        public int MemoryUsage { get; set; }
+        public int? CpuLoad { get; set; }
+
+        public ulong? MemoryTotal { get; set; }
+        public ulong? MemoryFree { get; set; }
 
         /// <summary>
         /// В мегабайтах
         /// </summary>
-        public ulong FreeDiskSpace { get; set; }
+        public ulong? FreeDiskSpace { get; set; }
 
         public string[]? Processes { get; set; }
+
+        public string[]? TrackedProcesses { get; set; }
     }
 }
