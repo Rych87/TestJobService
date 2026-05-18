@@ -16,6 +16,7 @@ namespace TestJobService
             _logger = logger;
             _settings = settings;
             _httpClient = httpClient;
+            _httpClient.Timeout = TimeSpan.FromSeconds(settings.CurrentValue.Timeout);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,8 +45,8 @@ namespace TestJobService
                     var settings = _settings.CurrentValue;
                     var info = SystemInfo.GetInfo(settings);
                     var json = JsonSerializer.Serialize(info);
-                    await channel.Writer.WriteAsync(json);
-                    await Task.Delay(1000, stoppingToken);
+                    await channel.Writer.WriteAsync(json, stoppingToken);
+                    await Task.Delay(settings.Interval * 1000, stoppingToken);
                 }
             }
             catch (OperationCanceledException ex) { }

@@ -20,18 +20,18 @@ namespace TestJobService
 
         internal static InfoModel CpuUsage(this InfoModel model)
         {
-            using var infoObj = GetInfo2("SELECT LoadPercentage FROM Win32_Processor");
-            if (int.TryParse(infoObj["LoadPercentage"]?.ToString(), out int res))
+            using var infoObj = GetInfo("SELECT LoadPercentage FROM Win32_Processor");
+            if (int.TryParse(infoObj?["LoadPercentage"]?.ToString(), out int res))
                     model.CpuLoad = res;
             return model;
         }
 
         internal static InfoModel MemoryUsage(this InfoModel model)
         {
-            using var infoObj = GetInfo2("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
-            if (ulong.TryParse(infoObj["TotalVisibleMemorySize"]?.ToString(), out ulong total))
+            using var infoObj = GetInfo("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem");
+            if (ulong.TryParse(infoObj?["TotalVisibleMemorySize"]?.ToString(), out ulong total))
                 model.MemoryTotal = total / 1024;   // В мегабайтах
-            if (ulong.TryParse(infoObj["FreePhysicalMemory"]?.ToString(), out ulong free))
+            if (ulong.TryParse(infoObj?["FreePhysicalMemory"]?.ToString(), out ulong free))
                 model.MemoryFree = free / 1024;
             return model;
         }
@@ -60,18 +60,12 @@ namespace TestJobService
 
         internal static InfoModel WinVersion(this InfoModel model)
         {
-            using var infoObj = GetInfo2("SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem");
-            model.WinVersion = infoObj["Caption"] + " " + infoObj["Version"] + " " + infoObj["BuildNumber"];
+            using var infoObj = GetInfo("SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem");
+            model.WinVersion = infoObj?["Caption"] + " " + infoObj["Version"] + " " + infoObj["BuildNumber"];
             return model;
         }
 
-        private static string GetInfo(this ManagementObjectSearcher searcher, string propertyName)
-        {
-            using (var res = searcher.Get())
-                return res.OfType<ManagementObject>()?.FirstOrDefault()?[propertyName]?.ToString() ?? string.Empty;
-        }
-
-        private static ManagementBaseObject? GetInfo2(string query)
+        private static ManagementBaseObject? GetInfo(string query)
         {
             using var searcher = new ManagementObjectSearcher(query);
             using var objList = searcher.Get();

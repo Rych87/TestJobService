@@ -1,5 +1,7 @@
 using Serilog;
 using TestJobService;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -13,6 +15,7 @@ Log.Logger = new LoggerConfiguration()
         retainedFileCountLimit: 7,
         shared: true,
         flushToDiskInterval: TimeSpan.FromSeconds(1))
+    .WriteTo.EventLog(source: "System Monitor Agent", logName: "Application", manageEventSource: true)
     .Filter.ByExcluding(logEvent =>
         logEvent.Properties.TryGetValue("SourceContext", out var value) &&
         value.ToString().Contains("LogicalHandler"))    //Иначе http запрос дублируется в логах
@@ -20,10 +23,7 @@ Log.Logger = new LoggerConfiguration()
 
 
 
-//builder.Configuration.AddJsonFile(
-//    "appsettings.json",
-//    optional: false,
-//    reloadOnChange: true);
+builder.Services.AddWindowsService((options) => options.ServiceName = "System Monitor Agent");
 
 builder.Logging.ClearProviders();
 builder.Services.AddSerilog();
